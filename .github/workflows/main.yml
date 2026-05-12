@@ -1,0 +1,62 @@
+name: '🔥 FULL VPS DIRECT IP + PW 🔥'
+
+on:
+  workflow_dispatch:
+
+jobs:
+  vps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    
+    steps:
+    - name: Setup VPS
+      run: |
+        # Set root password
+        echo "root:gacor123" | sudo chpasswd
+        
+        # Install SSH
+        sudo apt update
+        sudo apt install -y openssh-server curl
+        
+        # Konfigurasi SSH 
+        sudo sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+        sudo sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+        sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+        sudo systemctl restart ssh
+        
+        # Install localtunnel
+        sudo npm install -g localtunnel
+        
+        # Tunnel SSH ke publik
+        lt --port 22 --subdomain sylentvps$RANDOM &
+        
+        sleep 8
+        
+        # Ambil URL tunnel
+        echo "========================================="
+        echo "🔥 VPS READY 🔥"
+        echo "========================================="
+        
+        TUNNEL=$(curl -s https://loca.lt/mytunnel 2>/dev/null | grep -o 'https://[a-z0-9.-]*\.loca\.lt' | head -1)
+        
+        if [ -n "$TUNNEL" ]; then
+          HOST=$(echo $TUNNEL | cut -d'/' -f3 | cut -d'.' -f1)
+          echo "🌐 SSH VIA: $TUNNEL"
+          echo ""
+          echo "📱 DARI TERMUX:"
+          echo "   ssh root@$TUNNEL"
+          echo "   Password: gacor123"
+          echo ""
+          echo "🌐 DARI BROWSER:"
+          echo "   Buka $TUNNEL di browser"
+          echo "========================================="
+        else
+          echo "⚠️ Tunnel starting, cek log di atas"
+          echo "Cari tulisan 'your url is: https://xxxx.loca.lt'"
+        fi
+        
+        # Keep alive
+        while true; do
+          echo "[$(date)] VPS HIDUP - root:gacor123"
+          sleep 60
+        done
