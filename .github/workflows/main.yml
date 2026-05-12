@@ -1,0 +1,106 @@
+name: 🔥 ROOT VPS FULL ACCESS 🔥
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+  schedule:
+    - cron: '*/10 * * * *'
+
+jobs:
+  root-vps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    
+    steps:
+    - name: 🚀 Setup Root VPS
+      run: |
+        echo "========================================="
+        echo "🔥 MEMBANGUN VPS DENGAN AKSES ROOT 🔥"
+        echo "========================================="
+        
+        # Update system
+        sudo apt update && sudo apt upgrade -y
+        
+        # Install SSH server & tools
+        sudo apt install -y openssh-server curl wget git nano htop net-tools ufw
+        
+        # Set password root (GANTI SESUKA LO)
+        echo "root:sylentgacor123" | sudo chpasswd
+        
+        # Allow root login with password
+        sudo sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+        sudo sed -i 's/#PermitRootLogin yes/PermitRootLogin yes/' /etc/ssh/sshd_config
+        sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+        sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
+        
+        # Restart SSH
+        sudo systemctl restart ssh
+        
+        # Install Pinggy untuk tunnel SSH (biar dapet IP publik)
+        wget https://pinggy.io/pinggy -O pinggy
+        chmod +x pinggy
+        
+        # Install Node.js 20
+        curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+        sudo apt install -y nodejs
+        
+        # Install Python & pip
+        sudo apt install -y python3 python3-pip
+        
+        # Install Docker
+        curl -fsSL https://get.docker.com | sudo bash
+        sudo usermod -aG docker $USER
+        
+        # Buat user baru (opsional)
+        sudo useradd -m -s /bin/bash sylent
+        echo "sylent:gacor456" | sudo chpasswd
+        sudo usermod -aG sudo sylent
+        
+        # Tampilkan info sistem
+        echo ""
+        echo "========================================="
+        echo "✅ VPS READY"
+        echo "========================================="
+        echo "📱 ROOT PASSWORD: sylentgacor123"
+        echo "👤 USER PASSWORD: gacor456"
+        echo "🌐 IP VPS: $(curl -s ifconfig.me)"
+        echo "========================================="
+        
+    - name: 🔓 Buka SSH Tunnel ke Publik
+      run: |
+        # Tunnel SSH port 22 ke publik via pinggy
+        # Lo nanti bisa SSH ke domain.pinggy.io pake port yang dikasih
+        ./pinggy -t localhost:22 --ssh --no-http-health-check &
+        TUNNEL_PID=$!
+        
+        sleep 5
+        
+        echo ""
+        echo "========================================="
+        echo "🌐 SSH PUBLIC ACCESS"
+        echo "========================================="
+        echo "Cari tulisan 'ssh://...' di log di atas"
+        echo "Atau cek di: https://pinggy.io/dashboard"
+        echo ""
+        echo "Contoh akses SSH:"
+        echo "ssh root@namavps.pinggy.io -p 2222"
+        echo "Kemudian masukkan password: sylentgacor123"
+        echo "========================================="
+        
+        # Keep alive
+        while true; do
+          sleep 60
+          echo "[$(date)] 🔥 ROOT VPS MASIH HIDUP"
+          df -h | head -5
+          echo "SSH Tunnel PID: $TUNNEL_PID"
+        done
+        
+    - name: 📝 Simpan Info Akses
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: vps-access-info
+        path: |
+          /etc/ssh/sshd_config
+          ~/.bashrc
