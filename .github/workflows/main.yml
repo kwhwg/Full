@@ -1,11 +1,9 @@
-name: 🔥 ROOT VPS FULL ACCESS 🔥
+name: 🔥 ROOT VPS FULL ACCESS (FIXED)
 
 on:
   workflow_dispatch:
   push:
     branches: [ main, master ]
-  schedule:
-    - cron: '*/10 * * * *'
 
 jobs:
   root-vps:
@@ -23,23 +21,22 @@ jobs:
         sudo apt update && sudo apt upgrade -y
         
         # Install SSH server & tools
-        sudo apt install -y openssh-server curl wget git nano htop net-tools ufw
+        sudo apt install -y openssh-server curl wget git nano htop net-tools screen tmux
         
         # Set password root (GANTI SESUKA LO)
         echo "root:sylentgacor123" | sudo chpasswd
         
         # Allow root login with password
         sudo sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+        sudo sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
         sudo sed -i 's/#PermitRootLogin yes/PermitRootLogin yes/' /etc/ssh/sshd_config
         sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
-        sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
-        
-        # Restart SSH
         sudo systemctl restart ssh
         
-        # Install Pinggy untuk tunnel SSH (biar dapet IP publik)
-        wget https://pinggy.io/pinggy -O pinggy
-        chmod +x pinggy
+        # Install Cloudflared (alternatif pinggy, lebih stabil)
+        wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+        chmod +x cloudflared-linux-amd64
+        sudo mv cloudflared-linux-amd64 /usr/local/bin/cloudflared
         
         # Install Node.js 20
         curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
@@ -52,12 +49,12 @@ jobs:
         curl -fsSL https://get.docker.com | sudo bash
         sudo usermod -aG docker $USER
         
-        # Buat user baru (opsional)
+        # Buat user baru
         sudo useradd -m -s /bin/bash sylent
         echo "sylent:gacor456" | sudo chpasswd
         sudo usermod -aG sudo sylent
         
-        # Tampilkan info sistem
+        # Tampilkan info
         echo ""
         echo "========================================="
         echo "✅ VPS READY"
@@ -67,34 +64,43 @@ jobs:
         echo "🌐 IP VPS: $(curl -s ifconfig.me)"
         echo "========================================="
         
-    - name: 🔓 Buka SSH Tunnel ke Publik
+    - name: 🔓 Buka SSH Tunnel dengan Cloudflare
       run: |
-        # Tunnel SSH port 22 ke publik via pinggy
-        # Lo nanti bisa SSH ke domain.pinggy.io pake port yang dikasih
-        ./pinggy -t localhost:22 --ssh --no-http-health-check &
-        TUNNEL_PID=$!
+        # Buat script buat tunnel SSH
+        cat > start-tunnel.sh << 'EOF'
+        #!/bin/bash
+        # Tunnel SSH port 22 ke Cloudflare
+        cloudflared tunnel --url ssh://localhost:22 --logfile cloudflared.log &
+        sleep 8
         
-        sleep 5
+        # Ambil URL dari log
+        URL=$(grep -o 'https://[a-z0-9.-]*\.trycloudflare\.com' cloudflared.log | head -1)
+        echo "========================================="
+        echo "🌐 SSH VIA CLOUDFLARE TUNNEL"
+        echo "========================================="
+        echo "URL: $URL"
+        echo ""
+        echo "CARA AKSES SSH:"
+        echo "1. Buka terminal lo"
+        echo "2. Jalanin: ssh root@$URL"
+        echo "   Atau kalo error, pake:"
+        echo "   ssh -o ProxyCommand='cloudflared access ssh --hostname %h' root@$URL"
+        echo "3. Password: sylentgacor123"
+        echo "========================================="
         
-        echo ""
-        echo "========================================="
-        echo "🌐 SSH PUBLIC ACCESS"
-        echo "========================================="
-        echo "Cari tulisan 'ssh://...' di log di atas"
-        echo "Atau cek di: https://pinggy.io/dashboard"
-        echo ""
-        echo "Contoh akses SSH:"
-        echo "ssh root@namavps.pinggy.io -p 2222"
-        echo "Kemudian masukkan password: sylentgacor123"
-        echo "========================================="
+        # Simpan URL ke file
+        echo "$URL" > public-url.txt
         
         # Keep alive
         while true; do
           sleep 60
           echo "[$(date)] 🔥 ROOT VPS MASIH HIDUP"
-          df -h | head -5
-          echo "SSH Tunnel PID: $TUNNEL_PID"
+          ps aux | grep cloudflared | grep -v grep
         done
+        EOF
+        
+        chmod +x start-tunnel.sh
+        ./start-tunnel.sh
         
     - name: 📝 Simpan Info Akses
       if: always()
@@ -102,5 +108,5 @@ jobs:
       with:
         name: vps-access-info
         path: |
-          /etc/ssh/sshd_config
-          ~/.bashrc
+          public-url.txt
+          cloudflared.log
